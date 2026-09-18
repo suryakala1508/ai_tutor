@@ -14,8 +14,13 @@ settings = get_settings()
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+BCRYPT_ROUNDS = 10  # lower than bcrypt's default of 12: still secure, ~4x cheaper on
+# the low-CPU free-tier instances this app runs on, where the default cost made
+# every signup/login take ~2s of pure CPU time.
+
+
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8")[:72], bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8")[:72], bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:

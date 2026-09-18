@@ -18,10 +18,19 @@ async def process_material(payload: dict) -> None:
         if not material:
             return
         material.status = "processing"
+        material.processing_stage = "content_extraction"
+        material.error_message = None
         db.commit()
 
         try:
             pages = material.raw_text.split("\f") if material.raw_text else [""]
+            material.page_diagnostics = [
+                {"page": i, "method": "text" if page_text.strip() else "empty", "chars": len(page_text)}
+                for i, page_text in enumerate(pages, start=1)
+            ]
+            material.processing_stage = "chunking"
+            db.commit()
+
             chunk_index = 0
             for page_num, page_text in enumerate(pages, start=1):
                 for piece in chunk_text(page_text, page_num):
@@ -39,10 +48,12 @@ async def process_material(payload: dict) -> None:
 
             material.page_count = len(pages)
             material.status = "ready"
+            material.processing_stage = "ready"
             material.processed_at = datetime.now(timezone.utc)
             db.commit()
         except Exception as exc:  # noqa: BLE001
             material.status = "failed"
+            material.processing_stage = "failed"
             material.error_message = str(exc)
             db.commit()
             raise
@@ -50,10 +61,15 @@ async def process_material(payload: dict) -> None:
         # Concept extraction is best-effort: a material with good chunks/embeddings
         # is still "ready" and usable by the Tutor even if concept extraction fails
         # (e.g. LLM provider unavailable). Never flip a ready material back to failed.
+        material.processing_stage = "knowledge_extraction"
+        db.commit()
         try:
             await extract_and_store_concepts(db, material.project_id, material.owner_id, material.raw_text)
+            material.concepts_extracted = True
         except Exception:  # noqa: BLE001
             pass
+        material.processing_stage = "ready"
+        db.commit()
 
         write_learning_event(
             db,

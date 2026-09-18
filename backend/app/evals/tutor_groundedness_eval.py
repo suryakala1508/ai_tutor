@@ -7,7 +7,7 @@ Tutor cites correctly on the former and declines/flags uncertainty on the
 latter.
 
 Run: python -m app.evals.tutor_groundedness_eval
-Requires ANTHROPIC_API_KEY to be set (makes real LLM calls). Records a row
+Requires GROQ_API_KEY to be set (makes real LLM calls). Records a row
 in eval_runs so the Admin eval panel has something to show.
 """
 
@@ -18,7 +18,8 @@ from app.database import SessionLocal
 from app.models.models import Chunk, Concept, EvalRun, Material, Project, Space, User
 from app.services.embeddings import embed
 from app.services.tutor import assemble_context
-from anthropic import AsyncAnthropic
+from app.services.llm_client import GROQ_BASE_URL
+from openai import AsyncOpenAI
 from app.config import get_settings
 
 TEST_DOCUMENT = """Gradient Descent is an optimization algorithm used to minimize a loss \
@@ -102,20 +103,22 @@ async def run() -> EvalRun:
     db = SessionLocal()
     owner_id, project_id = _setup_project(db)
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = AsyncOpenAI(api_key=settings.groq_api_key, base_url=GROQ_BASE_URL)
     details = []
     passed = 0
     failed = 0
 
     for case in CASES:
         ctx = assemble_context(db, owner_id, project_id, conversation_id="eval-conv", question=case["question"])
-        response = await client.messages.create(
+        response = await client.chat.completions.create(
             model=settings.tutor_model,
             max_tokens=500,
-            system=ctx["system_prompt"],
-            messages=[{"role": "user", "content": case["question"]}],
+            messages=[
+                {"role": "system", "content": ctx["system_prompt"]},
+                {"role": "user", "content": case["question"]},
+            ],
         )
-        answer_text = "".join(b.text for b in response.content if b.type == "text")
+        answer_text = response.choices[0].message.content or ""
 
         from app.services.tutor import extract_citations_used
 

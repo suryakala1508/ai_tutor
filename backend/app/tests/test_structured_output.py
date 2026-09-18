@@ -15,8 +15,8 @@ class DummySchema(BaseModel):
 
 def _fake_response(text: str, input_tokens=10, output_tokens=5):
     return SimpleNamespace(
-        content=[SimpleNamespace(type="text", text=text)],
-        usage=SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens),
+        choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
+        usage=SimpleNamespace(prompt_tokens=input_tokens, completion_tokens=output_tokens),
     )
 
 
@@ -42,7 +42,7 @@ async def test_valid_structured_output_is_accepted(db_session):
     valid_json = '{"question": "What is X?", "answer": "X is Y"}'
 
     mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response(valid_json))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response(valid_json))
 
     with patch("app.services.llm_client.get_client", return_value=mock_client):
         result = await call_structured(
@@ -57,7 +57,7 @@ async def test_malformed_json_is_rejected_and_retried_then_raises(db_session):
     user, project = _make_user_project(db_session, "s2@test.com")
 
     mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response("this is not json at all"))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response("this is not json at all"))
 
     with patch("app.services.llm_client.get_client", return_value=mock_client):
         with pytest.raises(ValueError):
@@ -66,7 +66,7 @@ async def test_malformed_json_is_rejected_and_retried_then_raises(db_session):
                 project_id=project.id, owner_id=user.id, max_retries=1,
             )
     # retried: initial attempt + 1 retry = 2 calls
-    assert mock_client.messages.create.call_count == 2
+    assert mock_client.chat.completions.create.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -75,7 +75,7 @@ async def test_json_missing_required_fields_is_rejected(db_session):
     missing_field_json = '{"question": "What is X?"}'  # missing "answer"
 
     mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response(missing_field_json))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response(missing_field_json))
 
     with patch("app.services.llm_client.get_client", return_value=mock_client):
         with pytest.raises(ValueError):
@@ -91,7 +91,7 @@ async def test_recovery_after_one_bad_attempt_then_valid_output(db_session):
     valid_json = '{"question": "Q", "answer": "A"}'
 
     mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(
+    mock_client.chat.completions.create = AsyncMock(
         side_effect=[_fake_response("garbage"), _fake_response(valid_json)]
     )
 
@@ -101,7 +101,7 @@ async def test_recovery_after_one_bad_attempt_then_valid_output(db_session):
             project_id=project.id, owner_id=user.id, max_retries=2,
         )
     assert result.answer == "A"
-    assert mock_client.messages.create.call_count == 2
+    assert mock_client.chat.completions.create.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -129,7 +129,7 @@ async def test_invalid_output_never_persisted_by_grading(db_session):
     db_session.refresh(question)
 
     mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response("not valid json"))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response("not valid json"))
 
     with patch("app.services.llm_client.get_client", return_value=mock_client):
         with pytest.raises(ValueError):

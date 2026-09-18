@@ -10,11 +10,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7
 
-    anthropic_api_key: str = ""
-    tutor_model: str = "claude-sonnet-5"
-    quiz_model: str = "claude-sonnet-5"
-    grading_model: str = "claude-sonnet-5"
-    recommendation_model: str = "claude-sonnet-5"
+    groq_api_key: str = ""
+    tutor_model: str = "openai/gpt-oss-120b"
+    quiz_model: str = "openai/gpt-oss-120b"
+    grading_model: str = "openai/gpt-oss-120b"
+    recommendation_model: str = "openai/gpt-oss-120b"
 
     embedding_dim: int = 384
 

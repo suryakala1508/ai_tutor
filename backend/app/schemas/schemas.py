@@ -11,6 +11,7 @@ class ORMBase(BaseModel):
 # ---------- Auth ----------
 
 class SignupRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=8, max_length=200)
 
@@ -28,6 +29,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user_id: str
+    name: Optional[str] = None
     email: str
     is_admin: bool
 
@@ -50,6 +52,7 @@ class SpaceOut(ORMBase):
 
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=2000)
     goal: str = Field(default="", max_length=2000)
 
     model_config = ConfigDict(extra="forbid")
@@ -59,8 +62,15 @@ class ProjectOut(ORMBase):
     id: str
     space_id: str
     name: str
+    description: str
     goal: str
     created_at: datetime
+
+
+class PageDiagnostic(BaseModel):
+    page: int
+    method: Literal["text", "empty", "ocr", "ocr_unavailable", "ocr_failed"]
+    chars: int
 
 
 class MaterialOut(ORMBase):
@@ -68,6 +78,9 @@ class MaterialOut(ORMBase):
     project_id: str
     name: str
     status: str
+    processing_stage: Optional[str] = None
+    concepts_extracted: bool = False
+    page_diagnostics: list[PageDiagnostic] = Field(default_factory=list)
     error_message: Optional[str] = None
     page_count: int
     created_at: datetime
@@ -79,6 +92,20 @@ class MaterialOut(ORMBase):
 class TutorMessageRequest(BaseModel):
     conversation_id: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=8000)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ConversationSummary(BaseModel):
+    conversation_id: str
+    title: str
+    started_at: datetime
+    last_activity: datetime
+    pinned: bool
+
+
+class ConversationRename(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -123,11 +150,13 @@ class QuizGenerateRequest(BaseModel):
 
 class QuizQuestionOut(ORMBase):
     id: str
+    session_id: Optional[str] = None
     concept_id: str
     difficulty: str
     kind: str
     question_text: str
     options: Optional[list[str]] = None
+    expected_key_points: Optional[list[str]] = None
     selection_score: Optional[float] = None
     selection_reasons: Optional[dict] = None
 
@@ -143,10 +172,42 @@ class QuizAnswerResult(BaseModel):
     id: str
     is_correct: Optional[bool] = None
     understanding_level: Optional[str] = None
+    accuracy: Optional[str] = None
+    relevance: Optional[str] = None
     concepts_covered: list[str] = []
     concepts_missing: list[str] = []
     grading_explanation: Optional[str] = None
+    how_to_improve: Optional[str] = None
     correct_answer: Optional[str] = None
+
+
+class QuizSessionOut(BaseModel):
+    id: str
+    project_id: str
+    status: str
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConceptStat(BaseModel):
+    concept_id: str
+    concept_name: str
+    questions: int
+    correct: int
+
+
+class QuizSessionSummary(BaseModel):
+    id: str
+    status: str
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    questions_generated: int
+    questions_answered: int
+    correct_count: int
+    accuracy: Optional[float] = None
+    concepts_practiced: list[ConceptStat] = []
 
 
 # ---------- Structured LLM outputs ----------
@@ -168,9 +229,12 @@ class OpenEndedGenerated(BaseModel):
 
 class GradingResult(BaseModel):
     understanding_level: Literal["strong", "partial", "weak"]
+    accuracy: Literal["accurate", "partially_accurate", "inaccurate"]
+    relevance: Literal["relevant", "partially_relevant", "off_topic"]
     concepts_covered: list[str]
     concepts_missing: list[str]
     explanation: str
+    how_to_improve: str
 
     model_config = ConfigDict(extra="forbid")
 
@@ -217,6 +281,40 @@ class GenerateQuizQuestionInput(BaseModel):
     project_id: str
     concept: str = Field(min_length=1, max_length=300)
     difficulty: Literal["easy", "medium", "hard"] = "medium"
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# ---------- Flashcards ----------
+
+class FlashcardOut(ORMBase):
+    id: str
+    concept_id: str
+    front: str
+    back: str
+    source_material_name: Optional[str] = None
+    source_page_number: Optional[int] = None
+    ease_factor: float
+    interval_days: int
+    repetitions: int
+    next_review_at: datetime
+
+
+class FlashcardReviewRequest(BaseModel):
+    grade: Literal["again", "hard", "good", "easy"]
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class FlashcardGenerated(BaseModel):
+    front: str
+    back: str
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class FlashcardsGenerated(BaseModel):
+    cards: list[FlashcardGenerated] = Field(min_length=1, max_length=10)
 
     model_config = ConfigDict(extra="forbid")
 

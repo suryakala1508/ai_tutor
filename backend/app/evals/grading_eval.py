@@ -5,7 +5,7 @@ fixed question + expected key points. Asserts the grader's structured
 feedback correctly identifies missing concepts.
 
 Run: python -m app.evals.grading_eval
-Requires ANTHROPIC_API_KEY to be set (makes real LLM calls). Records a row
+Requires GROQ_API_KEY to be set (makes real LLM calls). Records a row
 in eval_runs.
 """
 

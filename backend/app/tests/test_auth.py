@@ -16,7 +16,7 @@ def test_login_wrong_password_rejected(client):
 
 def test_signup_duplicate_email_rejected(client):
     signup(client, "dup@test.com")
-    resp = client.post("/api/auth/signup", json={"email": "dup@test.com", "password": "password123"})
+    resp = client.post("/api/auth/signup", json={"name": "Test User", "email": "dup@test.com", "password": "password123"})
     assert resp.status_code == 409
 
 

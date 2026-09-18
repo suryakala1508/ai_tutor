@@ -1,11 +1,11 @@
-"""Thin wrapper around the Anthropic API: structured (schema-validated) calls,
-streaming, and centralized ai_usage_events logging."""
+"""Thin wrapper around the Groq API (OpenAI-compatible): structured
+(schema-validated) calls, streaming, and centralized ai_usage_events logging."""
 
 import json
 import time
 from typing import AsyncIterator, Type, TypeVar
 
-from anthropic import APIError, APITimeoutError, AsyncAnthropic
+from openai import APIError, APITimeoutError, AsyncOpenAI
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
@@ -13,15 +13,17 @@ from app.config import get_settings
 from app.models.models import AIUsageEvent
 
 settings = get_settings()
-_client: AsyncAnthropic | None = None
+_client: AsyncOpenAI | None = None
+
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 T = TypeVar("T", bound=BaseModel)
 
 
-def get_client() -> AsyncAnthropic:
+def get_client() -> AsyncOpenAI:
     global _client
     if _client is None:
-        _client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        _client = AsyncOpenAI(api_key=settings.groq_api_key, base_url=GROQ_BASE_URL)
     return _client
 
 
@@ -86,15 +88,17 @@ async def call_structured(
     for attempt in range(max_retries + 1):
         start = time.monotonic()
         try:
-            response = await client.messages.create(
+            response = await client.chat.completions.create(
                 model=model,
                 max_tokens=1500,
-                system=full_system,
-                messages=[{"role": "user", "content": user_prompt}],
+                messages=[
+                    {"role": "system", "content": full_system},
+                    {"role": "user", "content": user_prompt},
+                ],
                 timeout=20.0,
             )
             latency_ms = int((time.monotonic() - start) * 1000)
-            text = "".join(block.text for block in response.content if block.type == "text")
+            text = response.choices[0].message.content or ""
             parsed_json = _extract_json(text)
             result = schema.model_validate(parsed_json)
 
@@ -102,8 +106,8 @@ async def call_structured(
                 db,
                 feature=feature,
                 model=model,
-                prompt_tokens=response.usage.input_tokens,
-                completion_tokens=response.usage.output_tokens,
+                prompt_tokens=response.usage.prompt_tokens if response.usage else 0,
+                completion_tokens=response.usage.completion_tokens if response.usage else 0,
                 latency_ms=latency_ms,
                 success=True,
                 project_id=project_id,
@@ -160,19 +164,26 @@ async def stream_completion(
     error_message = None
     success = True
 
+    full_messages = [{"role": "system", "content": system_prompt}] + messages
+
     try:
-        async with client.messages.stream(
+        stream = await client.chat.completions.create(
             model=model,
             max_tokens=1200,
-            system=system_prompt,
-            messages=messages,
-        ) as stream:
-            async for text in stream.text_stream:
-                full_text += text
-                yield text
-            final = await stream.get_final_message()
-            input_tokens = final.usage.input_tokens
-            output_tokens = final.usage.output_tokens
+            messages=full_messages,
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+        async for chunk in stream:
+            if chunk.usage:
+                input_tokens = chunk.usage.prompt_tokens
+                output_tokens = chunk.usage.completion_tokens
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
+            if delta:
+                full_text += delta
+                yield delta
     except Exception as exc:  # noqa: BLE001
         success = False
         error_message = str(exc)

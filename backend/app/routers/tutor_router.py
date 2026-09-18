@@ -1,8 +1,9 @@
 import json
 import time
 import uuid
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -10,13 +11,14 @@ from app.auth import get_current_user
 from app.authorization import get_owned_project
 from app.config import get_settings
 from app.database import get_db, SessionLocal
-from app.models.models import ConversationMessage, User
+from app.models.models import Conversation, ConversationMessage, User
 from app.rate_limit import limiter
-from app.schemas.schemas import TutorMessageRequest
+from app.schemas.schemas import ConversationRename, ConversationSummary, TutorMessageRequest
 from app.services.llm_client import log_ai_usage
 from app.services.tutor import assemble_context, extract_citations_used
 from app.tools.tools import record_learning_event
-from anthropic import AsyncAnthropic, APIError, APITimeoutError
+from app.services.llm_client import GROQ_BASE_URL
+from openai import AsyncOpenAI, APIError, APITimeoutError
 
 router = APIRouter(prefix="/api/projects/{project_id}/tutor", tags=["tutor"])
 settings = get_settings()
@@ -33,6 +35,30 @@ async def send_message(
 ):
     get_owned_project(db, project_id, user.id)
 
+    conversation = (
+        db.query(Conversation)
+        .filter(
+            Conversation.project_id == project_id,
+            Conversation.owner_id == user.id,
+            Conversation.conversation_id == body.conversation_id,
+        )
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if not conversation:
+        conversation = Conversation(
+            project_id=project_id,
+            owner_id=user.id,
+            conversation_id=body.conversation_id,
+            title=body.message[:60],
+            started_at=now,
+            last_activity=now,
+        )
+        db.add(conversation)
+    else:
+        conversation.last_activity = now
+    db.commit()
+
     user_msg = ConversationMessage(
         project_id=project_id,
         owner_id=user.id,
@@ -46,8 +72,12 @@ async def send_message(
     ctx = assemble_context(db, user.id, project_id, body.conversation_id, body.message)
 
     async def event_stream():
-        client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-        messages = ctx["recent_turns"] + [{"role": "user", "content": body.message}]
+        client = AsyncOpenAI(api_key=settings.groq_api_key, base_url=GROQ_BASE_URL)
+        messages = (
+            [{"role": "system", "content": ctx["system_prompt"]}]
+            + ctx["recent_turns"]
+            + [{"role": "user", "content": body.message}]
+        )
 
         full_text = ""
         input_tokens = 0
@@ -57,18 +87,23 @@ async def send_message(
         start = time.monotonic()
 
         try:
-            async with client.messages.stream(
+            stream = await client.chat.completions.create(
                 model=settings.tutor_model,
                 max_tokens=1200,
-                system=ctx["system_prompt"],
                 messages=messages,
-            ) as stream:
-                async for delta in stream.text_stream:
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+            async for chunk in stream:
+                if chunk.usage:
+                    input_tokens = chunk.usage.prompt_tokens
+                    output_tokens = chunk.usage.completion_tokens
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta.content
+                if delta:
                     full_text += delta
                     yield f"data: {json.dumps({'type': 'delta', 'text': delta})}\n\n"
-                final = await stream.get_final_message()
-                input_tokens = final.usage.input_tokens
-                output_tokens = final.usage.output_tokens
         except (APITimeoutError, APIError, Exception) as exc:  # noqa: BLE001
             success = False
             error_message = str(exc)
@@ -128,6 +163,109 @@ async def send_message(
         yield f"data: {json.dumps({'type': 'done', 'citations': citations, 'insufficient_evidence': ctx['insufficient_evidence'], 'token_log': ctx['token_log'], 'context_selection_log': ctx['context_selection_log']})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/conversations", response_model=list[ConversationSummary])
+def list_conversations(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    get_owned_project(db, project_id, user.id)
+    conversations = (
+        db.query(Conversation)
+        .filter(Conversation.project_id == project_id, Conversation.owner_id == user.id)
+        .order_by(Conversation.pinned.desc(), Conversation.last_activity.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        ConversationSummary(
+            conversation_id=c.conversation_id,
+            title=c.title,
+            started_at=c.started_at,
+            last_activity=c.last_activity,
+            pinned=c.pinned,
+        )
+        for c in conversations
+    ]
+
+
+def _get_owned_conversation(db: Session, project_id: str, conversation_id: str, user: User) -> Conversation:
+    conversation = (
+        db.query(Conversation)
+        .filter(
+            Conversation.project_id == project_id,
+            Conversation.owner_id == user.id,
+            Conversation.conversation_id == conversation_id,
+        )
+        .first()
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conversation
+
+
+@router.post("/conversations/{conversation_id}/pin")
+def pin_conversation(
+    project_id: str,
+    conversation_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    get_owned_project(db, project_id, user.id)
+    conversation = _get_owned_conversation(db, project_id, conversation_id, user)
+    conversation.pinned = True
+    db.commit()
+    return {"pinned": True}
+
+
+@router.delete("/conversations/{conversation_id}/pin")
+def unpin_conversation(
+    project_id: str,
+    conversation_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    get_owned_project(db, project_id, user.id)
+    conversation = _get_owned_conversation(db, project_id, conversation_id, user)
+    conversation.pinned = False
+    db.commit()
+    return {"pinned": False}
+
+
+@router.patch("/conversations/{conversation_id}/title")
+def rename_conversation(
+    project_id: str,
+    conversation_id: str,
+    body: ConversationRename,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    get_owned_project(db, project_id, user.id)
+    conversation = _get_owned_conversation(db, project_id, conversation_id, user)
+    conversation.title = body.title
+    db.commit()
+    return {"title": conversation.title}
+
+
+@router.delete("/conversations/{conversation_id}")
+def delete_conversation(
+    project_id: str,
+    conversation_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    get_owned_project(db, project_id, user.id)
+    conversation = _get_owned_conversation(db, project_id, conversation_id, user)
+    db.query(ConversationMessage).filter(
+        ConversationMessage.project_id == project_id,
+        ConversationMessage.owner_id == user.id,
+        ConversationMessage.conversation_id == conversation_id,
+    ).delete()
+    db.delete(conversation)
+    db.commit()
+    return {"deleted": True}
 
 
 @router.get("/conversations/{conversation_id}")

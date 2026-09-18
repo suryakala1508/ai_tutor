@@ -11,12 +11,47 @@ from app.models.models import (
     BackgroundJob,
     EvalRun,
     LearningEvent,
+    Material,
     Project,
+    QuizAnswer,
     Space,
     User,
 )
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+@router.get("/overview")
+def overview(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    total_spaces = db.query(func.count(Space.id)).scalar() or 0
+    total_projects = db.query(func.count(Project.id)).scalar() or 0
+    total_materials = db.query(func.count(Material.id)).scalar() or 0
+
+    materials_by_status = {"queued": 0, "processing": 0, "ready": 0, "failed": 0}
+    for status, count in db.query(Material.status, func.count(Material.id)).group_by(Material.status).all():
+        key = "queued" if status == "pending" else status
+        if key in materials_by_status:
+            materials_by_status[key] = count
+
+    quiz_answers_total = db.query(func.count(QuizAnswer.id)).scalar() or 0
+    assessments_completed_total = (
+        db.query(func.count(LearningEvent.id)).filter(LearningEvent.type == "assessment_completed").scalar() or 0
+    )
+    tutor_messages_total = (
+        db.query(func.count(LearningEvent.id)).filter(LearningEvent.type == "tutor_conversation").scalar() or 0
+    )
+
+    return {
+        "total_users": total_users,
+        "total_spaces": total_spaces,
+        "total_projects": total_projects,
+        "total_materials": total_materials,
+        "materials_by_status": materials_by_status,
+        "quiz_answers_total": quiz_answers_total,
+        "assessments_completed_total": assessments_completed_total,
+        "tutor_messages_total": tutor_messages_total,
+    }
 
 
 @router.get("/users")
@@ -186,8 +221,46 @@ def system_health(_: User = Depends(require_admin), db: Session = Depends(get_db
     )
     queue_depth = db.query(func.count(BackgroundJob.id)).filter(BackgroundJob.status == "queued").scalar() or 0
 
+    failed_ai_events = (
+        db.query(AIUsageEvent)
+        .filter(AIUsageEvent.created_at >= since, AIUsageEvent.success.is_(False))
+        .order_by(AIUsageEvent.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    failed_jobs = (
+        db.query(BackgroundJob)
+        .filter(BackgroundJob.status == "failed", BackgroundJob.finished_at >= since)
+        .order_by(BackgroundJob.finished_at.desc())
+        .limit(10)
+        .all()
+    )
+    recent_failures = sorted(
+        [
+            {
+                "source": "ai_usage",
+                "label": e.feature,
+                "error_message": e.error_message,
+                "created_at": e.created_at.isoformat(),
+            }
+            for e in failed_ai_events
+        ]
+        + [
+            {
+                "source": "background_job",
+                "label": j.job_type,
+                "error_message": j.error_message,
+                "created_at": (j.finished_at or j.created_at).isoformat(),
+            }
+            for j in failed_jobs
+        ],
+        key=lambda f: f["created_at"],
+        reverse=True,
+    )[:10]
+
     return {
         "database_reachable": db_ok,
         "queue_depth": queue_depth,
         "recent_error_count_1h": recent_errors,
+        "recent_failures": recent_failures,
     }

@@ -2,7 +2,7 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("JWT_SECRET", "test-secret")
-os.environ.setdefault("ANTHROPIC_API_KEY", "test-key-not-real")
+os.environ.setdefault("GROQ_API_KEY", "test-key-not-real")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -51,8 +51,8 @@ def db_session():
     session.close()
 
 
-def signup(client, email="user@test.com", password="password123"):
-    resp = client.post("/api/auth/signup", json={"email": email, "password": password})
+def signup(client, email="user@test.com", password="password123", name="Test User"):
+    resp = client.post("/api/auth/signup", json={"name": name, "email": email, "password": password})
     assert resp.status_code == 200, resp.text
     return resp.json()
 

@@ -30,6 +30,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, default=gen_id)
+    name = Column(String, nullable=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
@@ -58,6 +59,7 @@ class Project(Base):
     space_id = Column(String, ForeignKey("spaces.id"), nullable=False, index=True)
     owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
+    description = Column(Text, default="")
     goal = Column(Text, default="")
     created_at = Column(DateTime, default=now_utc)
 
@@ -74,6 +76,9 @@ class Material(Base):
     owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     status = Column(String, default="pending")  # pending, processing, ready, failed
+    processing_stage = Column(String, nullable=True)  # queued, content_extraction, knowledge_extraction, chunking, ready, failed
+    concepts_extracted = Column(Boolean, default=False)
+    page_diagnostics = Column(JSON, default=list)
     error_message = Column(Text, nullable=True)
     raw_text = Column(Text, default="")
     page_count = Column(Integer, default=0)
@@ -111,6 +116,24 @@ class Concept(Base):
     created_at = Column(DateTime, default=now_utc)
 
     project = relationship("Project", back_populates="concepts")
+
+
+class Flashcard(Base):
+    __tablename__ = "flashcards"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
+    owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    concept_id = Column(String, ForeignKey("concepts.id"), nullable=False, index=True)
+    front = Column(Text, nullable=False)
+    back = Column(Text, nullable=False)
+    source_material_name = Column(String, nullable=True)
+    source_page_number = Column(Integer, nullable=True)
+    ease_factor = Column(Float, default=2.5)
+    interval_days = Column(Integer, default=0)
+    repetitions = Column(Integer, default=0)
+    next_review_at = Column(DateTime, default=now_utc)
+    created_at = Column(DateTime, default=now_utc)
 
 
 class ConceptMastery(Base):
@@ -160,6 +183,20 @@ class LearningEvent(Base):
     created_at = Column(DateTime, default=now_utc, index=True)
 
 
+class Conversation(Base):
+    __tablename__ = "conversations"
+    __table_args__ = (UniqueConstraint("project_id", "conversation_id", name="uq_conversation_project_conv"),)
+
+    id = Column(String, primary_key=True, default=gen_id)
+    conversation_id = Column(String, nullable=False, index=True)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
+    owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String, default="New conversation")
+    pinned = Column(Boolean, default=False)
+    started_at = Column(DateTime, default=now_utc)
+    last_activity = Column(DateTime, default=now_utc)
+
+
 class ConversationMessage(Base):
     __tablename__ = "conversation_messages"
 
@@ -179,12 +216,24 @@ class ConversationMessage(Base):
     created_at = Column(DateTime, default=now_utc, index=True)
 
 
+class QuizSession(Base):
+    __tablename__ = "quiz_sessions"
+
+    id = Column(String, primary_key=True, default=gen_id)
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
+    owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    status = Column(String, default="active")  # active, completed
+    started_at = Column(DateTime, default=now_utc)
+    completed_at = Column(DateTime, nullable=True)
+
+
 class QuizQuestion(Base):
     __tablename__ = "quiz_questions"
 
     id = Column(String, primary_key=True, default=gen_id)
     project_id = Column(String, ForeignKey("projects.id"), nullable=False, index=True)
     owner_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    session_id = Column(String, ForeignKey("quiz_sessions.id"), nullable=True, index=True)
     concept_id = Column(String, ForeignKey("concepts.id"), nullable=False, index=True)
     difficulty = Column(String, default="medium")  # easy, medium, hard
     kind = Column(String, default="mcq")  # mcq, open_ended
@@ -209,9 +258,12 @@ class QuizAnswer(Base):
     answer_text = Column(Text, nullable=False)
     is_correct = Column(Boolean, nullable=True)  # mcq: bool; open_ended: derived from understanding_level
     understanding_level = Column(String, nullable=True)  # strong, partial, weak (open_ended)
+    accuracy = Column(String, nullable=True)  # accurate, partially_accurate, inaccurate (open_ended)
+    relevance = Column(String, nullable=True)  # relevant, partially_relevant, off_topic (open_ended)
     concepts_covered = Column(JSON, default=list)
     concepts_missing = Column(JSON, default=list)
     grading_explanation = Column(Text, nullable=True)
+    how_to_improve = Column(Text, nullable=True)
     raw_evaluation = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=now_utc)
 

@@ -114,3 +114,55 @@ def get_material(
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
     return material
+
+
+@router.post("/{material_id}/retry", response_model=MaterialOut)
+async def retry_material(
+    project_id: str,
+    material_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    get_owned_project(db, project_id, user.id)
+    material = (
+        db.query(Material)
+        .filter(Material.id == material_id, Material.project_id == project_id, Material.owner_id == user.id)
+        .first()
+    )
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    material.status = "pending"
+    material.processing_stage = None
+    material.error_message = None
+    db.commit()
+    db.refresh(material)
+
+    enqueue_job(
+        "process_material",
+        {"material_id": material.id},
+        project_id=project_id,
+        owner_id=user.id,
+    )
+
+    return material
+
+
+@router.delete("/{material_id}")
+def delete_material(
+    project_id: str,
+    material_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    get_owned_project(db, project_id, user.id)
+    material = (
+        db.query(Material)
+        .filter(Material.id == material_id, Material.project_id == project_id, Material.owner_id == user.id)
+        .first()
+    )
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+    db.delete(material)
+    db.commit()
+    return {"deleted": True}

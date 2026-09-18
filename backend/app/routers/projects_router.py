@@ -18,7 +18,7 @@ def create_project(
     db: Session = Depends(get_db),
 ):
     get_owned_space(db, space_id, user.id)
-    project = Project(space_id=space_id, owner_id=user.id, name=body.name, goal=body.goal)
+    project = Project(space_id=space_id, owner_id=user.id, name=body.name, description=body.description, goal=body.goal)
     db.add(project)
     db.commit()
     db.refresh(project)

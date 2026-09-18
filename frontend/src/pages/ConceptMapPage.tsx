@@ -576,7 +576,7 @@ export default function ConceptMapPage() {
 
             {selectedNode && (
               <div
-                className="card"
+                className="card node-detail-card"
                 style={{
                   position: "absolute",
                   top: 10,

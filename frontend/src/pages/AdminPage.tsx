@@ -261,14 +261,15 @@ export default function AdminPage() {
                     fontSize: 12.5,
                     display: "flex",
                     justifyContent: "space-between",
-                    gap: 12,
+                    flexWrap: "wrap",
+                    gap: 6,
                     padding: "10px 14px",
                     borderRadius: "var(--radius-sm)",
                     background: "var(--red-tint)",
                     borderLeft: "3px solid var(--red)",
                   }}
                 >
-                  <span title={f.error_message || undefined}>
+                  <span title={f.error_message || undefined} style={{ minWidth: 0 }}>
                     <span style={{ color: "var(--muted)" }}>[{f.source === "ai_usage" ? "AI" : "job"}]</span> {f.label}
                     {f.error_message ? ` — ${truncate(f.error_message)}` : ""}
                   </span>
@@ -288,24 +289,26 @@ export default function AdminPage() {
             </div>
           )}
           {aiUsage && aiUsage.by_feature.length > 0 && (
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th style={{ paddingLeft: 24 }}>Feature</th><th className="r">Calls</th><th className="r">Avg latency (ms)</th><th className="r">Prompt tok</th><th className="r" style={{ paddingRight: 24 }}>Completion tok</th>
-                </tr>
-              </thead>
-              <tbody>
-                {aiUsage.by_feature.map((row) => (
-                  <tr key={row.feature}>
-                    <td style={{ paddingLeft: 24 }}>{row.feature}</td>
-                    <td className="r">{row.calls}</td>
-                    <td className="r">{row.avg_latency_ms}</td>
-                    <td className="r">{row.prompt_tokens}</td>
-                    <td className="r" style={{ paddingRight: 24 }}>{row.completion_tokens}</td>
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th style={{ paddingLeft: 24 }}>Feature</th><th className="r">Calls</th><th className="r">Avg latency (ms)</th><th className="r">Prompt tok</th><th className="r" style={{ paddingRight: 24 }}>Completion tok</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {aiUsage.by_feature.map((row) => (
+                    <tr key={row.feature}>
+                      <td style={{ paddingLeft: 24 }}>{row.feature}</td>
+                      <td className="r">{row.calls}</td>
+                      <td className="r">{row.avg_latency_ms}</td>
+                      <td className="r">{row.prompt_tokens}</td>
+                      <td className="r" style={{ paddingRight: 24 }}>{row.completion_tokens}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
@@ -346,19 +349,19 @@ export default function AdminPage() {
               placeholder="Filter by user id"
               value={activityFilters.user_id}
               onChange={(e) => setActivityFilters((f) => ({ ...f, user_id: e.target.value }))}
-              style={{ fontSize: 12.5, padding: "8px 11px" }}
+              style={{ fontSize: 12.5, padding: "8px 11px", flex: "1 1 160px", minWidth: 0 }}
             />
             <input
               placeholder="Filter by project id"
               value={activityFilters.project_id}
               onChange={(e) => setActivityFilters((f) => ({ ...f, project_id: e.target.value }))}
-              style={{ fontSize: 12.5, padding: "8px 11px" }}
+              style={{ fontSize: 12.5, padding: "8px 11px", flex: "1 1 160px", minWidth: 0 }}
             />
             <input
               placeholder="Filter by event type"
               value={activityFilters.event_type}
               onChange={(e) => setActivityFilters((f) => ({ ...f, event_type: e.target.value }))}
-              style={{ fontSize: 12.5, padding: "8px 11px" }}
+              style={{ fontSize: 12.5, padding: "8px 11px", flex: "1 1 160px", minWidth: 0 }}
             />
             <button className="btn btn-primary btn-sm" onClick={loadActivity}>
               Apply filters
@@ -391,29 +394,31 @@ export default function AdminPage() {
         <div className="block">
           <div className="section-label" style={{ padding: "22px 24px 4px" }}>Users (click a row to inspect their journey)</div>
           {users && (
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th style={{ paddingLeft: 24 }}>Email</th><th>Admin</th><th style={{ paddingRight: 24 }}>Joined</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr
-                    key={u.id}
-                    onClick={() => openUserJourney(u.id)}
-                    style={{
-                      cursor: "pointer",
-                      background: selectedUserId === u.id ? "var(--violet-tint)" : "transparent",
-                    }}
-                  >
-                    <td style={{ paddingLeft: 24 }}>{u.email}</td>
-                    <td>{u.is_admin ? "Yes" : "No"}</td>
-                    <td style={{ paddingRight: 24 }}>{new Date(u.created_at).toLocaleDateString()}</td>
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th style={{ paddingLeft: 24 }}>Email</th><th>Admin</th><th style={{ paddingRight: 24 }}>Joined</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {users.map((u) => (
+                    <tr
+                      key={u.id}
+                      onClick={() => openUserJourney(u.id)}
+                      style={{
+                        cursor: "pointer",
+                        background: selectedUserId === u.id ? "var(--violet-tint)" : "transparent",
+                      }}
+                    >
+                      <td style={{ paddingLeft: 24 }}>{u.email}</td>
+                      <td>{u.is_admin ? "Yes" : "No"}</td>
+                      <td style={{ paddingRight: 24 }}>{new Date(u.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 

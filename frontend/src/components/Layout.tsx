@@ -8,6 +8,7 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [confirmingLogout, setConfirmingLogout] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const location = useLocation();
 
@@ -15,12 +16,12 @@ export default function Layout() {
     <div>
       <header className="topbar">
         <div className="wrap topbar-inner">
-          <Link to="/" className="brand">
+          <Link to="/" className="brand" onClick={() => setMobileNavOpen(false)}>
             <span className="mark" aria-hidden="true" />
             AI Tutor
           </Link>
           {user && (
-            <nav style={{ display: "flex", gap: 6, flex: 1 }}>
+            <nav className="main-nav" style={{ display: "flex", gap: 6, flex: 1 }}>
               <Link to="/" className={`nav-link${location.pathname === "/" ? " active" : ""}`}>Home</Link>
               <Link to="/analytics" className={`nav-link${location.pathname === "/analytics" ? " active" : ""}`}>Analytics</Link>
               {user.is_admin && (
@@ -29,9 +30,28 @@ export default function Layout() {
             </nav>
           )}
           {user && (
-            <UserMenu name={user.name} email={user.email} onLogout={() => setConfirmingLogout(true)} />
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                className="hamburger"
+                aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileNavOpen}
+                onClick={() => setMobileNavOpen((o) => !o)}
+              >
+                <span /><span /><span />
+              </button>
+              <UserMenu name={user.name} email={user.email} onLogout={() => setConfirmingLogout(true)} />
+            </div>
           )}
         </div>
+        {user && (
+          <div className={`topbar-mobile-menu${mobileNavOpen ? " open" : ""}`}>
+            <Link to="/" className={`nav-link${location.pathname === "/" ? " active" : ""}`} onClick={() => setMobileNavOpen(false)}>Home</Link>
+            <Link to="/analytics" className={`nav-link${location.pathname === "/analytics" ? " active" : ""}`} onClick={() => setMobileNavOpen(false)}>Analytics</Link>
+            {user.is_admin && (
+              <Link to="/admin" className={`nav-link${location.pathname === "/admin" ? " active" : ""}`} onClick={() => setMobileNavOpen(false)}>Admin</Link>
+            )}
+          </div>
+        )}
       </header>
       {confirmingLogout && (
         <ConfirmModal

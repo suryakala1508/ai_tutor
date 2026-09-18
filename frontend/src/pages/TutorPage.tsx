@@ -398,9 +398,9 @@ export default function TutorPage() {
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: sidebarOpen ? 18 : 0, flex: 1, minHeight: 0 }}>
+      <div className="tutor-layout" style={{ display: "flex", gap: sidebarOpen ? 18 : 0, flex: 1, minHeight: 0 }}>
         {sidebarOpen && (
-          <div className="block" style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", padding: 12, overflow: "hidden" }}>
+          <div className="block tutor-sidebar" style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", padding: 12, overflow: "hidden" }}>
             <button className="btn btn-primary btn-sm" onClick={startNewConversation} style={{ width: "100%", marginBottom: 10 }}>
               + New conversation
             </button>

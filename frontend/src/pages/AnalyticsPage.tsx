@@ -138,31 +138,33 @@ export default function AnalyticsPage() {
               </div>
             )}
             {data.ai_activity_summary.length > 0 && (
-              <table className="tbl" style={{ padding: "0 4px" }}>
-                <thead>
-                  <tr>
-                    <th style={{ paddingLeft: 24 }}>Feature</th>
-                    <th className="r">Calls</th>
-                    <th className="r">Prompt tokens</th>
-                    <th className="r" style={{ paddingRight: 24 }}>Completion tokens</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.ai_activity_summary.map((row) => (
-                    <tr key={row.feature}>
-                      <td style={{ paddingLeft: 24 }}>
-                        <span className="feat-dot">
-                          <span style={{ background: "var(--violet)" }} />
-                          {row.feature}
-                        </span>
-                      </td>
-                      <td className="r">{row.calls}</td>
-                      <td className="r">{row.prompt_tokens}</td>
-                      <td className="r" style={{ paddingRight: 24 }}>{row.completion_tokens}</td>
+              <div className="tbl-wrap">
+                <table className="tbl" style={{ padding: "0 4px" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ paddingLeft: 24 }}>Feature</th>
+                      <th className="r">Calls</th>
+                      <th className="r">Prompt tokens</th>
+                      <th className="r" style={{ paddingRight: 24 }}>Completion tokens</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {data.ai_activity_summary.map((row) => (
+                      <tr key={row.feature}>
+                        <td style={{ paddingLeft: 24 }}>
+                          <span className="feat-dot">
+                            <span style={{ background: "var(--violet)" }} />
+                            {row.feature}
+                          </span>
+                        </td>
+                        <td className="r">{row.calls}</td>
+                        <td className="r">{row.prompt_tokens}</td>
+                        <td className="r" style={{ paddingRight: 24 }}>{row.completion_tokens}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 

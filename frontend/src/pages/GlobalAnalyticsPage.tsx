@@ -184,38 +184,40 @@ export default function GlobalAnalyticsPage() {
             {data.projects_overview.length === 0 ? (
               <div style={{ padding: "0 24px 24px" }}><EmptyState title="No Projects yet" /></div>
             ) : (
-              <table className="tbl">
-                <thead>
-                  <tr>
-                    <th style={{ paddingLeft: 24 }}>Project</th>
-                    <th>Space</th>
-                    <th className="r">Concepts</th>
-                    <th className="r">Mastery</th>
-                    <th className="r">Quiz accuracy</th>
-                    <th className="r" style={{ paddingRight: 24 }}>Activity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.projects_overview.map((row) => (
-                    <tr key={row.project_id}>
-                      <td style={{ paddingLeft: 24 }}>
-                        <Link to={`/projects/${row.project_id}`} className="lead">{row.project_name}</Link>
-                      </td>
-                      <td style={{ color: "var(--muted)" }}>{row.space_name}</td>
-                      <td className="r">{row.tracked_concepts}</td>
-                      <td className="r">
-                        <span className={`badge ${
-                          row.average_mastery === null ? "b-muted" : row.average_mastery >= 0.7 ? "b-green" : row.average_mastery >= 0.4 ? "b-amber" : "b-red"
-                        }`}>
-                          {pct(row.average_mastery)}
-                        </span>
-                      </td>
-                      <td className="r">{pct(row.quiz_accuracy)}</td>
-                      <td className="r" style={{ paddingRight: 24 }}>{row.total_events}</td>
+              <div className="tbl-wrap">
+                <table className="tbl">
+                  <thead>
+                    <tr>
+                      <th style={{ paddingLeft: 24 }}>Project</th>
+                      <th>Space</th>
+                      <th className="r">Concepts</th>
+                      <th className="r">Mastery</th>
+                      <th className="r">Quiz accuracy</th>
+                      <th className="r" style={{ paddingRight: 24 }}>Activity</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {data.projects_overview.map((row) => (
+                      <tr key={row.project_id}>
+                        <td style={{ paddingLeft: 24 }}>
+                          <Link to={`/projects/${row.project_id}`} className="lead">{row.project_name}</Link>
+                        </td>
+                        <td style={{ color: "var(--muted)" }}>{row.space_name}</td>
+                        <td className="r">{row.tracked_concepts}</td>
+                        <td className="r">
+                          <span className={`badge ${
+                            row.average_mastery === null ? "b-muted" : row.average_mastery >= 0.7 ? "b-green" : row.average_mastery >= 0.4 ? "b-amber" : "b-red"
+                          }`}>
+                            {pct(row.average_mastery)}
+                          </span>
+                        </td>
+                        <td className="r">{pct(row.quiz_accuracy)}</td>
+                        <td className="r" style={{ paddingRight: 24 }}>{row.total_events}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 
@@ -225,31 +227,33 @@ export default function GlobalAnalyticsPage() {
               {data.ai_activity_summary.length === 0 ? (
                 <div style={{ padding: "0 24px 24px" }}><EmptyState title="No AI activity yet" /></div>
               ) : (
-                <table className="tbl">
-                  <thead>
-                    <tr>
-                      <th style={{ paddingLeft: 24 }}>Feature</th>
-                      <th className="r">Calls</th>
-                      <th className="r">Prompt tok</th>
-                      <th className="r" style={{ paddingRight: 24 }}>Completion tok</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.ai_activity_summary.map((row, i) => (
-                      <tr key={row.feature}>
-                        <td style={{ paddingLeft: 24 }}>
-                          <span className="feat-dot">
-                            <span style={{ background: ["#6D4AFF", "#FF4D8D", "#0FC5C0", "#FF9F1C", "#16C784", "#8A6BFF"][i % 6] }} />
-                            {row.feature}
-                          </span>
-                        </td>
-                        <td className="r">{row.calls}</td>
-                        <td className="r">{row.prompt_tokens}</td>
-                        <td className="r" style={{ paddingRight: 24 }}>{row.completion_tokens}</td>
+                <div className="tbl-wrap">
+                  <table className="tbl">
+                    <thead>
+                      <tr>
+                        <th style={{ paddingLeft: 24 }}>Feature</th>
+                        <th className="r">Calls</th>
+                        <th className="r">Prompt tok</th>
+                        <th className="r" style={{ paddingRight: 24 }}>Completion tok</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {data.ai_activity_summary.map((row, i) => (
+                        <tr key={row.feature}>
+                          <td style={{ paddingLeft: 24 }}>
+                            <span className="feat-dot">
+                              <span style={{ background: ["#6D4AFF", "#FF4D8D", "#0FC5C0", "#FF9F1C", "#16C784", "#8A6BFF"][i % 6] }} />
+                              {row.feature}
+                            </span>
+                          </td>
+                          <td className="r">{row.calls}</td>
+                          <td className="r">{row.prompt_tokens}</td>
+                          <td className="r" style={{ paddingRight: 24 }}>{row.completion_tokens}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
